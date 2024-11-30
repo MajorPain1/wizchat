@@ -49,7 +49,7 @@ async def send_and_receive_data():
                         
                         event = {
                             "name": name,
-                            "volume_setting": 500,
+                            "volume_setting": 300,
                             "x": xyz.x,
                             "y": xyz.y,
                             "z": xyz.z,
@@ -61,7 +61,7 @@ async def send_and_receive_data():
                 await asyncio.sleep(0.001)
 
         async def receive_data():
-            prefill = 10  # Prefill buffer before playback
+            prefill = 20  # Prefill buffer before playback
             while True:
                 data = await websocket.recv()
                 event = json.loads(data)

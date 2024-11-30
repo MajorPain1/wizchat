@@ -1,0 +1,5 @@
+pyaudio
+pyqueue
+webrtcvad
+websockets
+git+https://codeberg.org/wizwalker/wizwalker.git@development
