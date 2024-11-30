@@ -16,29 +16,19 @@ class Client:
         self.websocket = websocket
         self.display_name = ""
         self.xyz = (0, 0, 0)
-        self.zone = ""
-        self.realm = ""
-        self.area = 0
+        self.zone_id = 0
         self.volume_setting = 100
         Client.connected_clients.add(self)
     
-    def update_location(self, xyz, zone, realm, area):
+    def update_location(self, xyz, zone_id):
         self.xyz = xyz
-        self.zone = zone
-        self.realm = realm
-        self.area = area
+        self.zone_id = zone_id
         
     def distance(self, other: 'Client'):
         return math.sqrt(math.pow(other.xyz[0] - self.xyz[0], 2) + math.pow(other.xyz[1] - self.xyz[1], 2) + math.pow(other.xyz[2] - self.xyz[2], 2))
     
     def in_range_of(self, other: 'Client'):
-        if other.zone != self.zone:
-            return (False, 0)
-        
-        if other.realm != self.realm:
-            return (False, 0)
-        
-        if other.area != self.area:
+        if other.zone_id != self.zone_id:
             return (False, 0)
         
         dist = self.distance(other)
@@ -57,7 +47,7 @@ async def handle_client(websocket):
             event = json.loads(data)
             client.display_name = event["name"]
             client.volume_setting = event["volume_setting"]
-            client.update_location((event["x"], event["y"], event["z"]), event["zone"], event["realm"], event["area"])
+            client.update_location((event["x"], event["y"], event["z"]), event["zone_id"])
             
             voice_data = base64.b64decode(event["data"])
             

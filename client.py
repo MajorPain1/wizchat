@@ -10,8 +10,7 @@ from websockets.asyncio.client import connect
 from wizwalker.extensions.wizsprinter import WizSprinter, SprintyClient
 
 sprinter = WizSprinter()
-sprinter.get_new_clients()
-client = sprinter.get_foreground_client()
+sprinty_client = (sprinter.get_new_clients())[0]
 
 uri = "ws://69.48.206.144:8765"
 
@@ -42,9 +41,9 @@ async def send_and_receive_data():
                 is_speaking = vad.is_speech(data, RATE)
                 
                 if is_speaking:
-                    display_name =  await client.client_object.display_name()
-                    xyz = await client.client_object.read_xyz()
-                    client_zone = await client.client_object.client_zone()
+                    display_name =  await sprinty_client.client_object.display_name()
+                    xyz = await sprinty_client.body.position()
+                    client_zone = await sprinty_client.client_object.client_zone()
                     zone_id = await client_zone.zone_id()
                     
                     event = {
@@ -83,11 +82,13 @@ async def send_and_receive_data():
         await asyncio.gather(send_data(), receive_data())
 
 async def setup_wizwalker():
-    await client.hook_handler.activate_client_hook()
-    await client.hook_handler.activate_player_hook()
+    await sprinty_client.hook_handler.activate_client_hook()
+    await sprinty_client.hook_handler.activate_player_hook()
 
 async def close_wizwalker():
-    await client.close()
+    await sprinty_client.hook_handler.deactivate_client_hook()
+    await sprinty_client.hook_handler.deactivate_player_hook()
+    await sprinty_client.close()
 
 async def main():
     await setup_wizwalker()
