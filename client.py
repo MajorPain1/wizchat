@@ -41,7 +41,7 @@ async def send_and_receive_data():
             while True:
                 data = stream.read(CHUNK, exception_on_overflow=False)
                 audio_samples = np.frombuffer(data, dtype=np.int16)
-                adjusted_samples = np.clip(audio_samples * MICROPHONE / 100, -32768, 32767).astype(np.int16)
+                adjusted_samples = np.clip(audio_samples * (MICROPHONE / 100), -32768, 32767).astype(np.int16)
                 adjusted_data = adjusted_samples.tobytes()
                 
                 is_speaking = vad.is_speech(adjusted_data, RATE)
@@ -72,7 +72,7 @@ async def send_and_receive_data():
                 event = json.loads(data)
                 voice_data = base64.b64decode(event["data"])
                 audio_samples = np.frombuffer(voice_data, dtype=np.int16)
-                adjusted_samples = np.clip(audio_samples * MICROPHONE / 100, -32768, 32767).astype(np.int16)
+                adjusted_samples = np.clip(audio_samples * (VOLUME / 100), -32768, 32767).astype(np.int16)
                 adjusted_data = adjusted_samples.tobytes()
                 talking_client = event["name"]
                 

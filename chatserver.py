@@ -44,6 +44,7 @@ async def handle_client(websocket):
     try:
         async for data in websocket:
             event = json.loads(data)
+            voice_data = event["data"]
             client.display_name = event["name"]
             client.update_location((event["x"], event["y"], event["z"]), event["zone_id"])
 
@@ -52,7 +53,7 @@ async def handle_client(websocket):
                 if in_range and other_client.websocket != client.websocket: 
                     event = {
                         "name": other_client.display_name,
-                        "data": data
+                        "data": voice_data
                     }
                     
                     await other_client.websocket.send(json.dumps(event))
