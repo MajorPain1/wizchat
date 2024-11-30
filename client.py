@@ -41,13 +41,13 @@ async def send_and_receive_data():
                 is_speaking = vad.is_speech(data, RATE)
                 
                 if is_speaking:
-                    display_name =  await sprinty_client.client_object.display_name()
+                    name =  await sprinty_client.client_object.object_name()
                     xyz = await sprinty_client.body.position()
                     client_zone = await sprinty_client.client_object.client_zone()
                     zone_id = await client_zone.zone_id()
                     
                     event = {
-                        "name": display_name,
+                        "name": name,
                         "volume_setting": 100,
                         "x": xyz.x,
                         "y": xyz.y,
@@ -88,7 +88,7 @@ async def setup_wizwalker():
 async def close_wizwalker():
     await sprinty_client.hook_handler.deactivate_client_hook()
     await sprinty_client.hook_handler.deactivate_player_hook()
-    await sprinty_client.close()
+    await sprinty_client.hook_handler.close()
 
 async def main():
     await setup_wizwalker()

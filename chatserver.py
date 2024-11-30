@@ -7,7 +7,7 @@ import json
 import websockets
 from websockets.asyncio.server import serve
 
-DISTANCE = 1200
+DISTANCE = 5000
 
 class Client:
     connected_clients = set()
