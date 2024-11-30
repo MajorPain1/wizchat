@@ -17,7 +17,6 @@ class Client:
         self.display_name = ""
         self.xyz = (0, 0, 0)
         self.zone_id = 0
-        self.volume_setting = 100
         Client.connected_clients.add(self)
     
     def update_location(self, xyz, zone_id):
@@ -29,14 +28,14 @@ class Client:
     
     def in_range_of(self, other: 'Client'):
         if other.zone_id != self.zone_id:
-            return (False, 0)
+            return False
         
         dist = self.distance(other)
         
         if dist > DISTANCE:
-            return (False, 0)
+            return False
         
-        return (True, 1-((dist-self.volume_setting)/DISTANCE))
+        return True
     
 
 async def handle_client(websocket):
@@ -46,26 +45,19 @@ async def handle_client(websocket):
         async for data in websocket:
             event = json.loads(data)
             client.display_name = event["name"]
-            client.volume_setting = event["volume_setting"]
             client.update_location((event["x"], event["y"], event["z"]), event["zone_id"])
-            
-            voice_data = base64.b64decode(event["data"])
-            
-            for other_client in Client.connected_clients:
-                other_client: Client
-                
-                in_range, volume = client.in_range_of(other_client)
+
+            async def send_to_client(other_client):
+                in_range = client.in_range_of(other_client)
                 if in_range and other_client.websocket != client.websocket: 
-                    audio_samples = np.frombuffer(voice_data, dtype=np.int16)
-                    adjusted_samples = np.clip(audio_samples * volume, -32768, 32767).astype(np.int16)
-                    adjusted_data = adjusted_samples.tobytes()
-                    
                     event = {
                         "name": other_client.display_name,
-                        "data": base64.b64encode(adjusted_data).decode("utf-8")
+                        "data": data
                     }
                     
                     await other_client.websocket.send(json.dumps(event))
+            
+            await asyncio.gather(*[send_to_client(p) for p in Client.connected_clients])
     
     except websockets.exceptions.ConnectionClosed:
         pass
