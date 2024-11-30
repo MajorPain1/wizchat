@@ -7,8 +7,6 @@ import json
 import websockets
 from websockets.asyncio.server import serve
 
-from wizwalker import XYZ
-
 DISTANCE = 1200
 
 class Client:
@@ -17,7 +15,7 @@ class Client:
     def __init__(self, websocket):
         self.websocket = websocket
         self.display_name = ""
-        self.xyz = XYZ(0, 0, 0)
+        self.xyz = (0, 0, 0)
         self.zone = ""
         self.realm = ""
         self.area = 0
@@ -31,7 +29,7 @@ class Client:
         self.area = area
         
     def distance(self, other: 'Client'):
-        return math.sqrt(math.pow(other.xyz.x - self.xyz.x, 2) + math.pow(other.xyz.y - self.xyz.y, 2) + math.pow(other.xyz.z - self.xyz.z, 2))
+        return math.sqrt(math.pow(other.xyz[0] - self.xyz[0], 2) + math.pow(other.xyz[1] - self.xyz[1], 2) + math.pow(other.xyz[2] - self.xyz[2], 2))
     
     def in_range_of(self, other: 'Client'):
         if other.zone != self.zone:
@@ -58,7 +56,7 @@ async def handle_client(websocket):
             event = json.loads(data)
             client.display_name = event["name"]
             client.volume_setting = event["volume_setting"]
-            client.update_location(XYZ(event["x"], event["y"], event["z"]), event["zone"], event["realm"], event["area"])
+            client.update_location((event["x"], event["y"], event["z"]), event["zone"], event["realm"], event["area"])
             
             voice_data = base64.b64decode(event["data"])
             
