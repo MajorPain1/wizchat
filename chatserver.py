@@ -9,6 +9,8 @@ from websockets.asyncio.server import serve
 
 from wizwalker import XYZ
 
+DISTANCE = 1200
+
 class Client:
     connected_clients = set()
     
@@ -43,10 +45,10 @@ class Client:
         
         dist = self.distance(other)
         
-        if dist > 800:
+        if dist > DISTANCE:
             return (False, 0)
         
-        return (True, 1-((dist-self.volume_setting)/800))
+        return (True, 1-((dist-self.volume_setting)/DISTANCE))
     
 
 async def handle_client(websocket):
@@ -64,7 +66,7 @@ async def handle_client(websocket):
                 other_client: Client
                 
                 in_range, volume = client.in_range_of(other_client)
-                if in_range: #and other_client.websocket != client.websocket: 
+                if in_range and other_client.websocket != client.websocket: 
                     audio_samples = np.frombuffer(voice_data, dtype=np.int16)
                     adjusted_samples = np.clip(audio_samples * volume, -32768, 32767).astype(np.int16)
                     adjusted_data = adjusted_samples.tobytes()
@@ -83,7 +85,7 @@ async def handle_client(websocket):
         
 
 async def main():
-    server = await serve(handle_client, "localhost", 8765)
+    server = await serve(handle_client, "0.0.0.0", 8765)
     await server.wait_closed()
 
 if __name__ == "__main__":

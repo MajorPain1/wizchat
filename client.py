@@ -7,7 +7,13 @@ import json
 
 from websockets.asyncio.client import connect
 
-uri = "ws://localhost:8765"
+from wizwalker.extensions.wizsprinter import WizSprinter, SprintyClient
+
+sprinter = WizSprinter()
+sprinter.get_new_clients()
+client = sprinter.get_foreground_client()
+
+uri = "ws://69.48.206.144:8765"
 
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
@@ -36,15 +42,19 @@ async def send_and_receive_data():
                 is_speaking = vad.is_speech(data, RATE)
                 
                 if is_speaking:
+                    #display_name =  await client.client_object.display_name()
+                    #xyz = await client.client_object.read_xyz()
+                    #zone_name = await client.zone_name()
+                    
                     event = {
-                        "name": "Corey Pants",
+                        "name": "Pants",
                         "volume_setting": 100,
                         "x": 0,
                         "y": 0,
                         "z": 0,
-                        "zone": "WC/Ravenwood",
-                        "realm": "Ambrose",
-                        "area": 1,
+                        "zone": "zone_name",
+                        "realm": "Ambrose", # Need wizwalker method
+                        "area": 1, # Need wizwalker method
                         "data": base64.b64encode(data).decode("utf-8")
                     }
                     await websocket.send(json.dumps(event))
@@ -59,7 +69,7 @@ async def send_and_receive_data():
                 voice_data = base64.b64decode(event["data"])
                 talking_client = event["name"]
                 
-                print(f"{talking_client} >>> home")
+                print(f"{talking_client} >>>")
                 
                 if jitter_buffer.qsize() < JITTER_BUFFER_SIZE:
                     jitter_buffer.put(voice_data)
@@ -73,8 +83,17 @@ async def send_and_receive_data():
         # Run send and receive simultaneously
         await asyncio.gather(send_data(), receive_data())
 
+async def setup_wizwalker():
+    await client.hook_handler.activate_client_hook()
+    await client.hook_handler.activate_player_hook()
+
+async def close_wizwalker():
+    await client.close()
+
 async def main():
+    #await setup_wizwalker()
     await send_and_receive_data()
+    #await close_wizwalker()
 
 if __name__ == "__main__":
     asyncio.run(main())
