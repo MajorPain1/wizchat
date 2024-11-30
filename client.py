@@ -42,19 +42,18 @@ async def send_and_receive_data():
                 is_speaking = vad.is_speech(data, RATE)
                 
                 if is_speaking:
-                    #display_name =  await client.client_object.display_name()
-                    #xyz = await client.client_object.read_xyz()
-                    #zone_name = await client.zone_name()
+                    display_name =  await client.client_object.display_name()
+                    xyz = await client.client_object.read_xyz()
+                    client_zone = await client.client_object.client_zone()
+                    zone_id = await client_zone.zone_id()
                     
                     event = {
-                        "name": "Pants",
+                        "name": display_name,
                         "volume_setting": 100,
-                        "x": 0,
-                        "y": 0,
-                        "z": 0,
-                        "zone": "zone_name",
-                        "realm": "Ambrose", # Need wizwalker method
-                        "area": 1, # Need wizwalker method
+                        "x": xyz.x,
+                        "y": xyz.y,
+                        "z": xyz.z,
+                        "zone_id": zone_id,
                         "data": base64.b64encode(data).decode("utf-8")
                     }
                     await websocket.send(json.dumps(event))
@@ -91,9 +90,9 @@ async def close_wizwalker():
     await client.close()
 
 async def main():
-    #await setup_wizwalker()
+    await setup_wizwalker()
     await send_and_receive_data()
-    #await close_wizwalker()
+    await close_wizwalker()
 
 if __name__ == "__main__":
     asyncio.run(main())
