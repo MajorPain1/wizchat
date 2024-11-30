@@ -51,6 +51,7 @@ class Client:
 
 async def handle_client(websocket):
     client = Client(websocket)
+    print(f"Connected user")
     try:
         async for data in websocket:
             event = json.loads(data)
