@@ -71,7 +71,7 @@ async def handle_client(websocket):
         pass
     finally:
         Client.connected_clients.remove(client)
-        
+        print("Disconnected User")
 
 async def main():
     server = await serve(handle_client, "0.0.0.0", 8765)

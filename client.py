@@ -41,21 +41,22 @@ async def send_and_receive_data():
                 is_speaking = vad.is_speech(data, RATE)
                 
                 if is_speaking:
-                    name =  await sprinty_client.client_object.object_name()
+                    name =  await sprinty_client.client_object.display_name()
                     xyz = await sprinty_client.body.position()
                     client_zone = await sprinty_client.client_object.client_zone()
-                    zone_id = await client_zone.zone_id()
-                    
-                    event = {
-                        "name": name,
-                        "volume_setting": 100,
-                        "x": xyz.x,
-                        "y": xyz.y,
-                        "z": xyz.z,
-                        "zone_id": zone_id,
-                        "data": base64.b64encode(data).decode("utf-8")
-                    }
-                    await websocket.send(json.dumps(event))
+                    if client_zone != None:
+                        zone_id = await client_zone.zone_id()
+                        
+                        event = {
+                            "name": name,
+                            "volume_setting": 500,
+                            "x": xyz.x,
+                            "y": xyz.y,
+                            "z": xyz.z,
+                            "zone_id": zone_id,
+                            "data": base64.b64encode(data).decode("utf-8")
+                        }
+                        await websocket.send(json.dumps(event))
                     
                 await asyncio.sleep(0.001)
 
