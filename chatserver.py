@@ -75,7 +75,7 @@ async def handle_client(websocket):
                         "data": base64.b64encode(adjusted_data).decode("utf-8")
                     }
                     
-                    await client.websocket.send(json.dumps(event))
+                    await other_client.websocket.send(json.dumps(event))
     
     except websockets.exceptions.ConnectionClosed:
         pass
