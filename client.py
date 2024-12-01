@@ -59,9 +59,10 @@ def playback(pipe: multiprocessing.connection.Connection):
             event = json.loads(data)
             
             name = event["name"]
+            distance = event["distance"]
             voice_data = base64.b64decode(event["data"])
             audio_samples = np.frombuffer(voice_data, dtype=np.int16)
-            adjusted_samples = np.clip(audio_samples * (VOLUME / 100), -32768, 32767).astype(np.float32)
+            adjusted_samples = np.clip(audio_samples * (VOLUME / 100) * distance, -32768, 32767).astype(np.float32)
 
             streams[name].append(adjusted_samples)
 

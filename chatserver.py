@@ -28,14 +28,14 @@ class Client:
     
     def in_range_of(self, other: 'Client'):
         if other.zone_id != self.zone_id:
-            return False
+            return (False, 0)
         
         dist = self.distance(other)
         
         if dist > DISTANCE:
-            return False
+            return (False, 0)
         
-        return True
+        return (False, dist/DISTANCE)
     
 
 async def handle_client(websocket):
@@ -52,10 +52,11 @@ async def handle_client(websocket):
                     client.update_location((event["x"], event["y"], event["z"]), event["zone_id"])
 
                     async def send_to_client(other_client):
-                        in_range = client.in_range_of(other_client)
+                        in_range, distance = client.in_range_of(other_client)
                         if in_range and other_client.websocket != client.websocket: 
                             event = {
                                 "name": other_client.display_name,
+                                "distance": distance,
                                 "data": voice_data
                             }
                             
