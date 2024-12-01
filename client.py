@@ -107,7 +107,7 @@ async def send_and_receive_data():
                 
                 data = pipe_out.recv_bytes()
                 event = {
-                    "name": "gamer",
+                    "name": "Major",
                     "x": xyz.x,
                     "y": xyz.y,
                     "z": xyz.z,

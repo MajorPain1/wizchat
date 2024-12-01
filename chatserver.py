@@ -43,22 +43,25 @@ async def handle_client(websocket):
     print(f"Connected User")
     try:
         async for data in websocket:
-            event = json.loads(data)
-            voice_data = event["data"]
-            client.display_name = event["name"]
-            client.update_location((event["x"], event["y"], event["z"]), event["zone_id"])
+            try:
+                event = json.loads(data)
+                voice_data = event["data"]
+                client.display_name = event["name"]
+                client.update_location((event["x"], event["y"], event["z"]), event["zone_id"])
 
-            async def send_to_client(other_client):
-                in_range = client.in_range_of(other_client)
-                if in_range and other_client.websocket != client.websocket: 
-                    event = {
-                        "name": other_client.display_name,
-                        "data": voice_data
-                    }
-                    
-                    await other_client.websocket.send(json.dumps(event))
-            
-            await asyncio.gather(*[send_to_client(p) for p in Client.connected_clients])
+                async def send_to_client(other_client):
+                    in_range = client.in_range_of(other_client)
+                    if in_range and other_client.websocket != client.websocket: 
+                        event = {
+                            "name": other_client.display_name,
+                            "data": voice_data
+                        }
+                        
+                        await other_client.websocket.send(json.dumps(event))
+                
+                await asyncio.gather(*[send_to_client(p) for p in Client.connected_clients])
+            except websockets.exceptions.ConnectionClosed as e:
+                print(f"{client.display_name} cause {e}")
     
     except websockets.exceptions.ConnectionClosed:
         pass
