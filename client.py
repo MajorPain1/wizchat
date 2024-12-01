@@ -1,4 +1,6 @@
 import asyncio
+import multiprocessing
+import multiprocessing.connection
 import pyaudio
 import queue
 import base64
@@ -8,8 +10,7 @@ import numpy as np
 
 from websockets.asyncio.client import connect
 
-from wizwalker.extensions.wizsprinter import WizSprinter, SprintyClient
-from wizwalker import XYZ
+from wizwalker.extensions.wizsprinter import WizSprinter
 
 sprinter = WizSprinter()
 sprinty_client = (sprinter.get_new_clients())[0]
@@ -32,79 +33,113 @@ audio = pyaudio.PyAudio()
 
 jitter_buffer = queue.Queue(maxsize=JITTER_BUFFER_SIZE)
 
-name = ""
-xyz = XYZ(0, 0, 0)
-zone_id = 0
+def playback(pipe: multiprocessing.connection.Connection):
+    stream = audio.open(format=FORMAT, channels=CHANNELS,
+        rate=RATE, input=False, output=True,
+        frames_per_buffer=CHUNK
+    )
+    jitter_buffer = []
+    prefill = 50
+
+    while not pipe.closed:
+        segments = []
+        i = 0
+        while pipe.poll():
+            data = pipe.recv_bytes()
+            event = json.loads(data)
+            
+            voice_data = base64.b64decode(event["data"])
+            audio_samples = np.frombuffer(voice_data, dtype=np.int16)
+            adjusted_samples = np.clip(audio_samples * (VOLUME / 100), -32768, 32767).astype(np.float32)
+            
+            if len(adjusted_samples) > 0:
+                # TODO: Resample if sizes don't match
+                segments.append(adjusted_samples)
+                
+        if len(segments) > 0:
+            data = segments[0] / len(segments)
+            for i in range(1, len(segments)):
+                data = data + segments[i] / len(segments)
+            #data /= len(segments)
+            adjusted_samples = data.astype(np.int16)
+            jitter_buffer.append(adjusted_samples.tobytes())
+            if len(jitter_buffer) > prefill:
+                stream.write(jitter_buffer.pop(0))
+
+
+def record(pipe: multiprocessing.connection.Connection):
+    stream = audio.open(format=FORMAT, channels=CHANNELS,
+        rate=RATE, input=True, output=False,
+        frames_per_buffer=CHUNK
+    )
+    while not pipe.closed:
+        data = stream.read(CHUNK, exception_on_overflow=False)
+        audio_samples = np.frombuffer(data, dtype=np.int16)
+        adjusted_samples = np.clip(audio_samples * (MICROPHONE / 100), -32768, 32767).astype(np.int16)
+        adjusted_data = adjusted_samples.tobytes()
+
+        is_speaking = vad.is_speech(adjusted_data, RATE)
+        
+        if is_speaking:
+            pipe.send_bytes(adjusted_data)
+
 
 # Function to send and receive audio
 async def send_and_receive_data():
-    stream = audio.open(format=FORMAT, channels=CHANNELS,
-                        rate=RATE, input=True, output=True,
-                        frames_per_buffer=CHUNK)
-
     async with connect(uri) as websocket:
-        async def save_location():
-            global name
-            global xyz
-            global zone_id
+        async def send_data():
+            pipe_in, pipe_out = multiprocessing.Pipe()
+            proc = multiprocessing.Process(target=record, args=(pipe_in,), daemon=True)
+            proc.start()
             while True:
+                if not pipe_out.poll():
+                    await asyncio.sleep(0.01)
+                    continue
+                
                 name =  await sprinty_client.client_object.display_name()
                 xyz = await sprinty_client.body.position()
                 client_zone = await sprinty_client.client_object.client_zone()
-                if client_zone != None:
-                    zone_id = await client_zone.zone_id()
                 
-                await asyncio.sleep(0.2)
+                if client_zone == None:
+                    continue
                 
-        async def send_data():
-            global name
-            global xyz
-            global zone_id
-            while True:
-                data = stream.read(CHUNK, exception_on_overflow=False)
-                audio_samples = np.frombuffer(data, dtype=np.int16)
-                adjusted_samples = np.clip(audio_samples * (MICROPHONE / 100), -32768, 32767).astype(np.int16)
-                adjusted_data = adjusted_samples.tobytes()
+                zone_id = await client_zone.zone_id()
                 
-                is_speaking = vad.is_speech(adjusted_data, RATE)
-                
-                if is_speaking:
-                    event = {
-                        "name": name,
-                        "x": xyz.x,
-                        "y": xyz.y,
-                        "z": xyz.z,
-                        "zone_id": 0,
-                        "data": base64.b64encode(adjusted_data).decode("utf-8")
-                    }
-                    await websocket.send(json.dumps(event))
-                    
-                await asyncio.sleep(0.00001)
+                data = pipe_out.recv_bytes()
+                event = {
+                    "name": "gamer",
+                    "x": xyz.x,
+                    "y": xyz.y,
+                    "z": xyz.z,
+                    "zone_id": zone_id,
+                    "data": base64.b64encode(data).decode("utf-8")
+                }
+                await websocket.send(json.dumps(event))
 
         async def receive_data():
-            prefill = 10  # Prefill buffer before playback
+            pipe_in, pipe_out = multiprocessing.Pipe()
+            proc = multiprocessing.Process(target=playback, args=(pipe_in,), daemon=True)
+            proc.start()
             while True:
-                data = await websocket.recv()
-                event = json.loads(data)
-                voice_data = base64.b64decode(event["data"])
-                audio_samples = np.frombuffer(voice_data, dtype=np.int16)
-                adjusted_samples = np.clip(audio_samples * (VOLUME / 100), -32768, 32767).astype(np.int16)
-                adjusted_data = adjusted_samples.tobytes()
-                talking_client = event["name"]
-                
-                print(f"{talking_client} >>>")
-                
-                if jitter_buffer.qsize() < JITTER_BUFFER_SIZE:
-                    jitter_buffer.put(adjusted_data)
+                data = bytes(await websocket.recv(), "utf-8")
+                pipe_out.send_bytes(data)
 
-                # Start playback only after prefill
-                if jitter_buffer.qsize() > prefill:
-                    stream.write(jitter_buffer.get())
-                        
-                await asyncio.sleep(0.00001)
+        # force connect
+        event = {
+            "name": "gamer",
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "zone_id": 0,
+            "data": base64.b64encode(b"").decode("utf-8")
+        }
+        await websocket.send(json.dumps(event))
 
         # Run send and receive simultaneously
-        await asyncio.gather(send_data(), receive_data(), save_location())
+        await asyncio.gather(
+            send_data(),
+            receive_data(),
+        )
 
 async def setup_wizwalker():
     await sprinty_client.hook_handler.activate_client_hook()
