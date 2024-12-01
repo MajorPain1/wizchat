@@ -8,6 +8,8 @@ import webrtcvad
 import json
 import numpy as np
 import itertools
+import time
+from collections import defaultdict
 
 from websockets.asyncio.client import connect
 
@@ -45,36 +47,41 @@ async def keepalive(websocket, ping_interval=30):
 
 def playback(pipe: multiprocessing.connection.Connection):
     stream = audio.open(format=FORMAT, channels=CHANNELS,
-        rate=RATE, input=False, output=True,
-        frames_per_buffer=CHUNK
-    )
-    jitter_buffer = []
-    prefill = 50
+                        rate=RATE, input=False, output=True,
+                        frames_per_buffer=CHUNK)
+    
+    streams = defaultdict(list)
+    last_play_time = time.time()
 
     while not pipe.closed:
-        segments = []
-        i = 0
         while pipe.poll():
             data = pipe.recv_bytes()
             event = json.loads(data)
             
+            name = event["name"]
             voice_data = base64.b64decode(event["data"])
             audio_samples = np.frombuffer(voice_data, dtype=np.int16)
             adjusted_samples = np.clip(audio_samples * (VOLUME / 100), -32768, 32767).astype(np.float32)
-            
-            if len(adjusted_samples) > 0:
-                # TODO: Resample if sizes don't match
-                segments.append(adjusted_samples)
+
+            streams[name].append(adjusted_samples)
+
+        if streams:
+            mix = np.zeros(CHUNK, dtype=np.float32)
+
+            for speaker, buffer in list(streams.items()):
+                if buffer:
+                    mix += buffer.pop(0)
                 
-        if len(segments) > 0:
-            data = segments[0] / len(segments)
-            for i in range(1, len(segments)):
-                data = data + segments[i] / len(segments)
-            #data /= len(segments)
-            adjusted_samples = data.astype(np.int16)
-            jitter_buffer.append(adjusted_samples.tobytes())
-            if len(jitter_buffer) > prefill:
-                stream.write(jitter_buffer.pop(0))
+                if not buffer:
+                    del streams[speaker]
+
+            mix /= max(1, len(streams))
+            mix = np.clip(mix, -32768, 32767).astype(np.int16)
+
+            stream.write(mix.tobytes())
+
+        time.sleep(max(0, CHUNK / RATE - (time.time() - last_play_time)))
+        last_play_time = time.time()
 
 
 def record(pipe: multiprocessing.connection.Connection):
