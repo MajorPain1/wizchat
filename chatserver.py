@@ -35,7 +35,7 @@ class Client:
         if dist > DISTANCE:
             return (False, 0)
         
-        return (False, dist/DISTANCE)
+        return (True, dist/DISTANCE)
     
 
 async def handle_client(websocket):
