@@ -2,6 +2,6 @@ pyaudio
 pyqueue
 webrtcvad
 websockets
-itertools
+setuptools
 git+https://codeberg.org/wizwalker/wizwalker.git@development
 git+https://github.com/Slackaduts/wizsprinter@lib-update
