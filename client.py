@@ -7,10 +7,12 @@ import base64
 import webrtcvad
 import json
 import numpy as np
+import itertools
 
 from websockets.asyncio.client import connect
 
 from wizwalker.extensions.wizsprinter import WizSprinter
+from websockets.exceptions import ConnectionClosed
 
 sprinter = WizSprinter()
 sprinty_client = (sprinter.get_new_clients())[0]
@@ -32,6 +34,14 @@ vad = webrtcvad.Vad(mode=1)
 audio = pyaudio.PyAudio()
 
 jitter_buffer = queue.Queue(maxsize=JITTER_BUFFER_SIZE)
+
+async def keepalive(websocket, ping_interval=30):
+    for ping in itertools.count():
+        await asyncio.sleep(ping_interval)
+        try:
+            await websocket.send(json.dumps({"ping": ping}))
+        except ConnectionClosed:
+            break
 
 def playback(pipe: multiprocessing.connection.Connection):
     stream = audio.open(format=FORMAT, channels=CHANNELS,
@@ -87,59 +97,63 @@ def record(pipe: multiprocessing.connection.Connection):
 # Function to send and receive audio
 async def send_and_receive_data():
     async with connect(uri) as websocket:
-        async def send_data():
-            pipe_in, pipe_out = multiprocessing.Pipe()
-            proc = multiprocessing.Process(target=record, args=(pipe_in,), daemon=True)
-            proc.start()
-            while True:
-                if not pipe_out.poll():
-                    await asyncio.sleep(0.01)
-                    continue
-                
-                name =  await sprinty_client.client_object.display_name()
-                xyz = await sprinty_client.body.position()
-                client_zone = await sprinty_client.client_object.client_zone()
-                
-                if client_zone == None:
-                    continue
-                
-                zone_id = await client_zone.zone_id()
-                
-                data = pipe_out.recv_bytes()
-                event = {
-                    "name": "Major",
-                    "x": xyz.x,
-                    "y": xyz.y,
-                    "z": xyz.z,
-                    "zone_id": zone_id,
-                    "data": base64.b64encode(data).decode("utf-8")
-                }
-                await websocket.send(json.dumps(event))
+        keepalive_task = asyncio.create_task(keepalive(websocket))
+        try:
+            async def send_data():
+                pipe_in, pipe_out = multiprocessing.Pipe()
+                proc = multiprocessing.Process(target=record, args=(pipe_in,), daemon=True)
+                proc.start()
+                while True:
+                    if not pipe_out.poll():
+                        await asyncio.sleep(0.01)
+                        continue
+                    
+                    name =  await sprinty_client.client_object.display_key()
+                    xyz = await sprinty_client.body.position()
+                    client_zone = await sprinty_client.client_object.client_zone()
+                    
+                    if client_zone == None:
+                        continue
+                    
+                    zone_id = await client_zone.zone_id()
+                    
+                    data = pipe_out.recv_bytes()
+                    event = {
+                        "name": name,
+                        "x": xyz.x,
+                        "y": xyz.y,
+                        "z": xyz.z,
+                        "zone_id": zone_id,
+                        "data": base64.b64encode(data).decode("utf-8")
+                    }
+                    await websocket.send(json.dumps(event))
 
-        async def receive_data():
-            pipe_in, pipe_out = multiprocessing.Pipe()
-            proc = multiprocessing.Process(target=playback, args=(pipe_in,), daemon=True)
-            proc.start()
-            while True:
-                data = bytes(await websocket.recv(), "utf-8")
-                pipe_out.send_bytes(data)
+            async def receive_data():
+                pipe_in, pipe_out = multiprocessing.Pipe()
+                proc = multiprocessing.Process(target=playback, args=(pipe_in,), daemon=True)
+                proc.start()
+                while True:
+                    data = bytes(await websocket.recv(), "utf-8")
+                    pipe_out.send_bytes(data)
 
-        # force connect
-        event = {
-            "name": "gamer",
-            "x": 0,
-            "y": 0,
-            "z": 0,
-            "zone_id": 0,
-            "data": base64.b64encode(b"").decode("utf-8")
-        }
-        await websocket.send(json.dumps(event))
+            # force connect
+            event = {
+                "name": "gamer",
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "zone_id": 0,
+                "data": base64.b64encode(b"").decode("utf-8")
+            }
+            await websocket.send(json.dumps(event))
 
-        # Run send and receive simultaneously
-        await asyncio.gather(
-            send_data(),
-            receive_data(),
-        )
+            # Run send and receive simultaneously
+            await asyncio.gather(
+                send_data(),
+                receive_data(),
+            )
+        finally:
+            keepalive_task.cancel()
 
 async def setup_wizwalker():
     await sprinty_client.hook_handler.activate_client_hook()
